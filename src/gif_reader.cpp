@@ -29,10 +29,10 @@ typedef struct __attribute__((packed)) _rgb {
 typedef struct __attribute__((packed)) _gif_screen_descriptor {
 	unsigned short width;
 	unsigned short height;
-	unsigned int global_color_table_size : 3;
-	unsigned int sorted : 1;
-	unsigned int color_resolution : 3;
-	unsigned int global_table_enabled : 1;
+	unsigned char global_color_table_size : 3;
+	unsigned char sorted : 1;
+	unsigned char color_resolution : 3;
+	unsigned char global_table_enabled : 1;
 	char bg_color_index;
 	char aspect_ratio;
 }gif_screen_descriptor;
@@ -54,7 +54,7 @@ void print_screen_descriptor_info(gif_screen_descriptor * sd) {
 	cout << "Global table " << (sd->global_table_enabled == 1 ? "enabled" : "disabled") << endl;
 	cout << "No of color bits " << sd->color_resolution + 1 << endl;
 	cout << "Sorting " << (sd->sorted == 1 ? "enabled" : "disabled") << endl;
-	cout << "Global table size " << sd->global_color_table_size << endl;
+	cout << "Global table size " << (int)sd->global_color_table_size << endl;
 }
 
 int main() {
@@ -69,12 +69,19 @@ int main() {
 			cout << "unable to read header" << endl;
 		} else {
 			header[6] = '\0';
-			cout << "gif version : " << header << endl;
+			cout << "gif version : " << header << ", sd size : " << sizeof(sd) << endl;
 			count = fread(&sd, 1, sizeof(sd), file);
 			if (count >= sizeof(sd)) {
+				char identifier[2];
+				cout << "file read size : " << ftell(file) << endl;
 				print_screen_descriptor_info(&sd);
 				global_table = create_global_color_table(&sd);
-				fread(global_table, 1, sizeof(rgb) * get_global_table_size(&sd), file);
+				fread(global_table, 1, get_global_table_size(&sd), file);
+				cout << "file read size : " << ftell(file) << endl;
+				fread(identifier, 1, 2, file);
+				if (identifier[0] == 0x21 && identifier[1] == 0xFF) {
+					cout << "application extension detected" << endl;
+				}
 				delete [] global_table;
 			}
 		}
