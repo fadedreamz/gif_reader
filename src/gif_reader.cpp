@@ -10,10 +10,16 @@
 #include <cstdio>
 using namespace std;
 
-typedef struct __attribute__((packed)) _gif_data_subblock {
+typedef struct __attribute__((packed)) _gif_data_block {
 	unsigned char size;
 	unsigned char data[0];
-}gif_data_subblock;
+}gif_data_block;
+
+typedef struct __attribute__((packed)) _gif_app_ext {
+	unsigned char size;
+	unsigned char app_identifier[8];
+	unsigned char app_auth_code[3];
+}gif_app_ext;
 
 typedef struct __attribute__((packed)) _gif_header {
 	char ID[3];
@@ -62,7 +68,7 @@ int main() {
 	char header[7];
 	rgb * global_table;
 	gif_screen_descriptor sd;
-	cout << "data subblock size : " << sizeof(gif_data_subblock) << endl;
+	cout << "data subblock size : " << sizeof(gif_data_block) << endl;
 	if (file != NULL) {
 		size_t count = fread(header, 1, 6, file);
 		if (count < 6) {
@@ -75,12 +81,23 @@ int main() {
 				char identifier[2];
 				cout << "file read size : " << ftell(file) << endl;
 				print_screen_descriptor_info(&sd);
-				global_table = create_global_color_table(&sd);
-				fread(global_table, 1, get_global_table_size(&sd), file);
-				cout << "file read size : " << ftell(file) << endl;
+				if (sd.global_table_enabled) {
+					global_table = create_global_color_table(&sd);
+					fread(global_table, 1, get_global_table_size(&sd), file);
+					cout << "file read size : " << ftell(file) << endl;
+				}
 				fread(identifier, 1, 2, file);
-				if (identifier[0] == 0x21 && identifier[1] == 0xFF) {
+				if (identifier[0] == 0x21 && identifier[1] == (char)0xff) {
+					gif_app_ext ext;
+					char datablock[257];
+					gif_data_block * block = (gif_data_block *)datablock;
 					cout << "application extension detected" << endl;
+					fread(&ext, 1, sizeof(ext), file);
+					fread(block, 1, sizeof(gif_data_block), file);
+					while(block->size != 0) {
+						fread(block->data, 1, block->size, file);
+						fread(block, 1, sizeof(gif_data_block), file);
+					}
 				}
 				delete [] global_table;
 			}
