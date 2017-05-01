@@ -133,55 +133,59 @@ int main() {
 					global_table = create_global_color_table(&sd);
 					fread(global_table, 1, get_global_table_size(&sd), file);
 					cout << "file read size : " << ftell(file) << endl;
+					for(int i=0; i<get_global_table_size(&sd); i = i + 3) {
+						printf("color %d : #%02X%02X%02X\n", i/3 + 1,
+								global_table[i].r, global_table[i].g, global_table[i].b);
+					}
+					printf("\n");
 				}
-				fread(identifier, 1, 1, file);
-				if (identifier[0] == 0x21) {
-					fread(identifier, 1, 1, file);
-					if (identifier[0] == (char)0xff) {
-						gif_app_ext ext;
-						char datablock[257];
-						gif_data_block * block = (gif_data_block *)datablock;
-						cout << "application extension detected" << endl;
-						fread(&ext, 1, sizeof(ext), file);
-						fread(block, 1, sizeof(gif_data_block), file);
-						while(block->size != 0) {
-							fread(block->data, 1, block->size, file);
+				while(fread(identifier, 1, 1, file) > 0) {
+					if (identifier[0] == 0x21) {
+						fread(identifier, 1, 1, file);
+						if (identifier[0] == (char)0xff) {
+							gif_app_ext ext;
+							char datablock[257];
+							gif_data_block * block = (gif_data_block *)datablock;
+							cout << "application extension detected" << endl;
+							fread(&ext, 1, sizeof(ext), file);
 							fread(block, 1, sizeof(gif_data_block), file);
+							while(block->size != 0) {
+								fread(block->data, 1, block->size, file);
+								fread(block, 1, sizeof(gif_data_block), file);
+							}
+						} else if (identifier[0] == (char)0xf9) {
+								gif_graphics_ctrl_ext ext;
+								cout << "graphics control extension detected" << endl;
+								fread(&ext, 1, sizeof(ext), file);
+						}
+					}else if (identifier[0] == (char)0x2c) {
+							gif_image_descriptor des;
+							cout << "image descriptor found" << endl;
+							fread(&des, 1, sizeof(des), file);
+							print_image_descriptor_info(&des);
+							if (des.table_enabled == 1) {
+								local_table = create_local_color_table(&des);
+								fread(local_table, 1, get_local_table_size(&des), file);
+							}
+							fread(identifier, 1, 1, file);
+							cout << "LWZ compression bit is : " << (int) identifier[0] << endl;
+						} else if (identifier[0] == (char)0x00) {
+							// do nothing
+						} else {
+							// consider data block and skip
+							fread(identifier, 1, 1, file);
+							cout << "failed parsing" << endl;
+							break;
 						}
 					}
 				}
-				fread(identifier, 1, 1, file);
-				if (identifier[0] == (char)0x21) {
-					fread(identifier, 1, 1, file);
-					if (identifier[0] == (char)0xf9) {
-						gif_graphics_ctrl_ext ext;
-						cout << "graphics control extension detected" << endl;
-						fread(&ext, 1, sizeof(ext), file);
-					}
-				}
-				fread(identifier, 1, 1, file);
-				if (identifier[0] == (char)0x2c) {
-					gif_image_descriptor des;
-					cout << "image descriptor found" << endl;
-					fread(&des, 1, sizeof(des), file);
-					print_image_descriptor_info(&des);
-					if (des.table_enabled == 1) {
-						local_table = create_local_color_table(&des);
-						fread(local_table, 1, get_local_table_size(&des), file);
-					}
-					fread(identifier, 1, 1, file);
-					cout << "LWZ compression bit is : " << (int) identifier[0] << endl;
-				}
-
-				if (global_table != NULL)
-					delete [] global_table;
-				if (local_table != NULL)
-					delete [] local_table;
 			}
-		}
+		if (global_table != NULL)
+			delete [] global_table;
+		if (local_table != NULL)
+			delete [] local_table;
 		fclose(file);
 	}
-
 	cout << endl;
 	UNITY_BEGIN();
 	RUN_TEST(test_get_global_table_size);
